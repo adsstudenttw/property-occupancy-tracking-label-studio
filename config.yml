@@ -1,0 +1,20 @@
+# Global project configuration
+
+label_studio:
+  project_id: 1
+
+video_processing:
+  target_fps: 1
+  use_original_resolution: true # If false, manually specify resolution below:
+  default_width: 3840
+  default_height: 2160
+
+mot:
+  output_dir: "data/mot_output"
+
+exports:
+  export_dir: "data/exports"
+  split_dir: "data/exports/split"
+
+videos:
+  directory: "videos"

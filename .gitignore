@@ -1,0 +1,50 @@
+# Label Studio data
+data/label-studio/
+data/postgres/
+data/exports/*.json
+data/exports/split/
+data/mot_output/
+
+# MOT datasets
+*/gt/
+*/img1/
+*.ini
+
+# Videos from SURF storage
+videos/
+*.mp4
+*.mkv
+*.avi
+*.mov
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.env/
+venv/
+.venv/
+
+# Docker artifacts
+*.log
+*.pid
+docker-compose.override.yml
+
+# Environment secrets
+.env
+
+# Editor / OS junk files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Exporter container build cache
+exporter/__pycache__/
+exporter/*.pyc
+
+# MOT output intermediate files
+tmp/

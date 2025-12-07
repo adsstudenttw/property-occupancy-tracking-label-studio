@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lsuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lspassword}
+      POSTGRES_DB: ${POSTGRES_DB:-labelstudio}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+
+  labelstudio:
+    image: heartexlabs/label-studio:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "${LABEL_STUDIO_PORT:-8080}:8080"
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-lsuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lspassword}
+      POSTGRES_DB: ${POSTGRES_DB:-labelstudio}
+
+      LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED: "true"
+      LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT: "/label-studio/files"
+    volumes:
+      - ./data/label-studio:/label-studio/data
+      - ./videos:/label-studio/files:ro
+    command: >
+      label-studio start
+      --host 0.0.0.0
+      --port 8080
+
+  exporter:
+    build: ./exporter
+    depends_on:
+      - labelstudio
+    environment:
+      LABEL_STUDIO_URL: http://labelstudio:8080
+      LABEL_STUDIO_API_KEY: ${LABEL_STUDIO_API_KEY}
+    volumes:
+      - ./data:/workspace/data
+      - ./scripts:/workspace/scripts
+      - ./videos:/workspace/videos:ro
