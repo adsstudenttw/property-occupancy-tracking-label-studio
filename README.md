@@ -83,25 +83,25 @@ This will:
 - Extract frames at 1 FPS using FFmpeg  
 - Convert annotations → MOT format  
 - Build directories like:  
-`data/mot_output/`
-`   seq01/`
-`      img1/000001.jpg`
-`      img1/000002.jpg`
-`      gt/gt.txt`
-`      seqinfo.ini`
-`seq02/`
-`      ...`
+`data/mot_output/`  
+`   seq01/`  
+`      img1/000001.jpg`  
+`      img1/000002.jpg`  
+`      gt/gt.txt`  
+`      seqinfo.ini`  
+`seq02/`  
+`      ...`  
 
 9. What the output looks like  
-`data/mot_output/`
-`└── video01/`
-`     ├── img1/`
-`     │    ├── 000001.jpg`
-`     │    ├── 000002.jpg`
-`     │    └── ...`
-`     ├── gt/`
-`     │    └── gt.txt`
-`     └── seqinfo.ini`
+`data/mot_output/`  
+`└── video01/`  
+`     ├── img1/`  
+`     │    ├── 000001.jpg`  
+`     │    ├── 000002.jpg`  
+`     │    └── ...`  
+`     ├── gt/`  
+`     │    └── gt.txt`  
+`     └── seqinfo.ini`  
 
 10. Updating annotations & regenerating data  
 If you update annotations:  
