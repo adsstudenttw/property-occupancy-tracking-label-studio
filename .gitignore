@@ -3,6 +3,7 @@ data/label-studio/
 data/postgres/
 data/exports/*.json
 data/exports/split/
+data/mot_output/
 
 # MOT datasets
 */gt/
