@@ -13,12 +13,12 @@ services:
       - ./data/postgres:/var/lib/postgresql/data
 
   labelstudio:
-    image: heartexlabs/label-studio:latest
+    image: heartexlabs/label-studio:1.13.1
     restart: unless-stopped
     depends_on:
       - db
     ports:
-      - "${LABEL_STUDIO_PORT:-8080}:8080"
+      - "8080:8080"
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
@@ -32,18 +32,20 @@ services:
       - ./data/label-studio:/label-studio/data
       - ./videos:/label-studio/files:ro
     command: >
-      label-studio start
-      --host 0.0.0.0
-      --port 8080
+      label-studio start --host 0.0.0.0 --port 8080
 
   exporter:
     build: ./exporter
+    restart: "no"
     depends_on:
       - labelstudio
+    env_file:
+      - .env
     environment:
       LABEL_STUDIO_URL: http://labelstudio:8080
-      LABEL_STUDIO_API_KEY: ${LABEL_STUDIO_API_KEY}
     volumes:
       - ./data:/workspace/data
       - ./scripts:/workspace/scripts
       - ./videos:/workspace/videos:ro
+      - ./config.yml:/workspace/config.yml:ro
+    command: python run_export.py

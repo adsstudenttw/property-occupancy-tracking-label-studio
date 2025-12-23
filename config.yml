@@ -1,13 +1,14 @@
 # Global project configuration
 
 label_studio:
-  project_id: 1
+  project_id: 3
 
 video_processing:
-  target_fps: 1
-  use_original_resolution: true # If false, manually specify resolution below:
-  default_width: 3840
-  default_height: 2160
+  frame_stride: 12          # Annotate every 12 frames
+  mot_fps: 2                # 24 / 12
+  use_original_resolution: true
+  default_width: 1920
+  default_height: 960
 
 mot:
   output_dir: "data/mot_output"

@@ -3,14 +3,13 @@ data/label-studio/
 data/postgres/
 data/exports/*.json
 data/exports/split/
-data/mot_output/
 
 # MOT datasets
 */gt/
 */img1/
 *.ini
 
-# Videos from SURF storage
+# Videos
 videos/
 *.mp4
 *.mkv

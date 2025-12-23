@@ -53,8 +53,6 @@ Restart exporter container:
 6. Add videos to Label Studio  
 Place your videos in:  
 `videos/`  
-or mount your SURF storage as:  
-`./videos → /mnt/surf-storage`  
 
 In Label Studio:  
 - Create a project  
