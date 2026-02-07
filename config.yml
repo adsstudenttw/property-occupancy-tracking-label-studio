@@ -4,8 +4,8 @@ label_studio:
   project_id: 3
 
 video_processing:
-  frame_stride: 12          # Annotate every 12 frames
-  mot_fps: 2                # 24 / 12
+  frame_stride: 24          # Annotate every 24 frames
+  mot_fps: 1
   use_original_resolution: true
   default_width: 1920
   default_height: 960

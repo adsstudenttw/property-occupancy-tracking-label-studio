@@ -93,47 +93,65 @@ def fetch_ls_json_export():
 
 def parse_ls_tracks(ls_json_path: Path):
     """
-    Parse Label Studio video annotations.
+    Parse Label Studio VIDEO JSON export into per-video tracks.
+
+    Label Studio (current JSON export) does NOT include value.track_id.
+    Each tracked object is represented by one `result` item of type
+    'videorectangle' with:
+      - result["id"]  -> stable unique track key
+      - value.sequence -> list of keyframes for that track
 
     Returns:
-        dict[video_name][track_id] = list of (frame_idx, x, y, w, h)
+        dict[video_name][track_key] = list of (ls_frame, x, y, w, h)
+        where:
+          - ls_frame is 1-based (as exported by Label Studio)
+          - x,y,w,h are percentages (0..100)
     """
     data = json.loads(ls_json_path.read_text())
-
     tracks_per_video = defaultdict(lambda: defaultdict(list))
 
     for task in data:
-        video_url = task["data"].get("video")
+        video_url = task.get("data", {}).get("video")
         if not video_url:
             continue
 
         raw_name = Path(video_url).stem
 
-        # Handle Label Studio upload prefix
-        if "-" in raw_name:
-            video_name = raw_name.split("-", 1)[1]
-        else:
-            video_name = raw_name
+        # Label Studio often prefixes uploaded files: "<uuid>-<original>"
+        video_name = raw_name.split("-", 1)[1] if "-" in raw_name else raw_name
 
         for ann in task.get("annotations", []):
             for result in ann.get("result", []):
                 if result.get("type") != "videorectangle":
                     continue
 
-                value = result["value"]
-                track_id = value.get("track_id")
+                track_key = result.get("id")  # ✅ stable unique identifier per track
+                if not track_key:
+                    # Extremely defensive fallback (shouldn't happen)
+                    track_key = f"{task.get('id')}-{result.get('from_name')}-{result.get('to_name')}"
+
+                value = result.get("value", {})
                 seq = value.get("sequence", [])
 
-                for frame in seq:
-                    frame_idx = frame["frame"]
-                    x = frame["x"]
-                    y = frame["y"]
-                    w = frame["width"]
-                    h = frame["height"]
+                for kf in seq:
+                    # Skip disabled keyframes (track ended / hidden)
+                    if not kf.get("enabled", True):
+                        continue
 
-                    tracks_per_video[video_name][track_id].append(
-                        (frame_idx, x, y, w, h)
+                    ls_frame = int(kf["frame"])  # 1-based frame index in LS export
+                    x = float(kf["x"])
+                    y = float(kf["y"])
+                    w = float(kf["width"])
+                    h = float(kf["height"])
+
+                    tracks_per_video[video_name][track_key].append(
+                        (ls_frame, x, y, w, h)
                     )
+
+    # Sort each track by LS frame index for consistency
+    for vname in tracks_per_video:
+        for tkey in tracks_per_video[vname]:
+            tracks_per_video[vname][tkey].sort(key=lambda tup: tup[0])
 
     return tracks_per_video
 
@@ -148,10 +166,10 @@ def write_mot_sequence(
 
     Assumptions (by design):
     - Annotation video FPS = 24
-    - Annotations are placed every 12 frames
-    - Frames are extracted using: select=not(mod(n,12))
+    - Annotations are placed every 24 frames
+    - Frames are extracted using: select=not(mod(n,24))
     - Therefore:
-        MOT frame index = (ls_frame // 12) + 1
+        MOT frame index = (ls_frame // 24) + 1
 
     This guarantees exact alignment between:
     - Label Studio frames
@@ -170,16 +188,18 @@ def write_mot_sequence(
     # Output directories
     seq_dir = OUTPUT_DIR / seqname
     gt_dir = seq_dir / "gt"
+    det_dir = seq_dir / "det"
     img_dir = seq_dir / "img1"
-
     gt_dir.mkdir(parents=True, exist_ok=True)
+    det_dir.mkdir(parents=True, exist_ok=True)
     img_dir.mkdir(parents=True, exist_ok=True)
 
     # MOT seqinfo.ini
-    seq_length = (total_frames // 12) + 1  # number of extracted frames
+    # For 0-based n in [0, total_frames-1], count multiples of FRAME_STRIDE.
+    seq_length = ((total_frames - 1) // FRAME_STRIDE) + 1 if total_frames > 0 else 0
 
-    seqinfo = seq_dir / "seqinfo.ini"
-    seqinfo.write_text(
+    # seqinfo.ini
+    (seq_dir / "seqinfo.ini").write_text(
         f"""[Sequence]
         name={seqname}
         imDir=img1
@@ -191,41 +211,57 @@ def write_mot_sequence(
         """
     )
 
-    # Build gt.txt
+    # Map track keys (strings) -> integer MOT IDs
+    track_id_map = {k: i + 1 for i, k in enumerate(sorted(tracks.keys(), key=str))}
+
     gt_lines = []
+    det_lines = []
 
-    for track_id, frames in tracks.items():
+    for track_key, frames in tracks.items():
+        mot_id = track_id_map[track_key]
+
         for ls_frame, x, y, w, h in frames:
-            # --- exact frame mapping
-            mot_frame = (ls_frame // FRAME_STRIDE) + 1
+            # LS frames are 1-based; convert to 0-based before stride mapping
+            ls_zero = ls_frame - 1
 
-            # --- convert normalized coords (%) → pixels
+            # Exact stride mapping: LS frame 1->0 maps to MOT frame 1
+            mot_frame = (ls_zero // FRAME_STRIDE) + 1
+
+            # Percent -> pixels
             px = x / 100.0 * width
             py = y / 100.0 * height
             pw = w / 100.0 * width
             ph = h / 100.0 * height
 
             gt_lines.append(
-                f"{mot_frame},{track_id},"
+                f"{mot_frame},{mot_id},"
                 f"{px:.1f},{py:.1f},{pw:.1f},{ph:.1f},"
-                f"1,1,1"
+                f"1,-1,-1,-1"
             )
 
-    # MOT requires sorting by frame index
-    gt_lines.sort(key=lambda line: int(line.split(",")[0]))
+            det_lines.append(
+                f"{mot_frame},-1,"
+                f"{px:.1f},{py:.1f},{pw:.1f},{ph:.1f},"
+                f"1.0,-1,-1,-1"
+            )
 
-    gt_file = gt_dir / "gt.txt"
-    gt_file.write_text("\n".join(gt_lines))
+    # Sort by frame (and then by id for determinism)
+    gt_lines.sort(key=lambda line: (int(line.split(",")[0]), int(line.split(",")[1])))
+    det_lines.sort(key=lambda line: int(line.split(",")[0]))
 
-    # Extract frames: EXACTLY every 12th frame
+    (gt_dir / "gt.txt").write_text("\n".join(gt_lines))
+    (det_dir / "det.txt").write_text("\n".join(det_lines))
+
+    # Extract frames: EXACTLY every FRAME_STRIDE-th decoded frame (0, stride, 2*stride, ...)
+    # setpts is crucial to avoid “1-frame early” drift after the first frame.
     subprocess.run(
         [
             "ffmpeg",
             "-i",
             str(video_path),
             "-vf",
-            f"select=not(mod(n\\,{FRAME_STRIDE}))",
-            "-vsync",
+            f"select=not(mod(n\\,{FRAME_STRIDE})),setpts=N/FRAME_RATE/TB",
+            "-fps_mode",
             "vfr",
             "-qscale:v",
             "2",
